@@ -80,15 +80,6 @@ impl Rect {
         self.y..self.end_y()
     }
 
-    pub fn top_row(self) -> Rect {
-        Rect {
-            x: self.x,
-            y: self.y,
-            width: self.width,
-            height: 1,
-        }
-    }
-
     /// The (x, y) coordinate of the top-left corner of this `Rect`.
     fn top_left(self) -> (isize, isize) {
         (self.x, self.y)
@@ -97,13 +88,6 @@ impl Rect {
     /// The (x, y) coordinate of the bottom-right corner of this `Rect`.
     fn bottom_right(self) -> (isize, isize) {
         (self.end_x(), self.end_y())
-    }
-
-    /// Whether or not this `Rect` contains the given point.
-    pub fn contains_point(self, x: isize, y: isize) -> bool {
-        let (x1, y1) = self.top_left();
-        let (x2, y2) = self.bottom_right();
-        x1 <= x && x < x2 && y1 <= y && y < y2
     }
 
     /// Whether this `Rect` has zero area.

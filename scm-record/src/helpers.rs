@@ -2,7 +2,10 @@
 
 use std::{collections::VecDeque, time::Duration};
 
-use crate::{Event, RecordError, RecordInput, TerminalKind};
+use crate::{
+    ui::{event, input::RecordInput, terminal::TerminalKind},
+    RecordError,
+};
 
 /// Generate a one-line description of a binary file change.
 pub fn make_binary_description(hash: &str, num_bytes: u64) -> String {
@@ -20,7 +23,7 @@ impl RecordInput for CrosstermInput {
         TerminalKind::Crossterm
     }
 
-    fn next_events(&mut self) -> Result<Vec<Event>, RecordError> {
+    fn next_events(&mut self) -> Result<Vec<event::Event>, RecordError> {
         // Ensure we block for at least one event.
         let first_event = crossterm::event::read().map_err(RecordError::ReadInput)?;
         let mut events = vec![first_event.into()];
@@ -48,7 +51,7 @@ pub struct TestingInput {
     pub height: usize,
 
     /// The sequence of events to emit.
-    pub events: Box<dyn Iterator<Item = Event>>,
+    pub events: Box<dyn Iterator<Item = event::Event>>,
 
     /// Commit messages to use when the commit editor is opened.
     pub commit_messages: VecDeque<String>,
@@ -59,7 +62,7 @@ impl TestingInput {
     pub fn new(
         width: usize,
         height: usize,
-        events: impl IntoIterator<Item = Event> + 'static,
+        events: impl IntoIterator<Item = event::Event> + 'static,
     ) -> Self {
         Self {
             width,
@@ -84,8 +87,8 @@ impl RecordInput for TestingInput {
         }
     }
 
-    fn next_events(&mut self) -> Result<Vec<Event>, RecordError> {
-        Ok(vec![self.events.next().unwrap_or(Event::None)])
+    fn next_events(&mut self) -> Result<Vec<event::Event>, RecordError> {
+        Ok(vec![self.events.next().unwrap_or(event::Event::None)])
     }
 
     fn edit_commit_message(&mut self, _message: &str) -> Result<String, RecordError> {
