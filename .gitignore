@@ -1,4 +1,5 @@
 /target
+.packages
 .direnv
 *.so
 *.pending-snap
