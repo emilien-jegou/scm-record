@@ -1,5 +1,3 @@
-//! UI implementation.
-
 use std::any::Any;
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -12,10 +10,10 @@ use std::path::Path;
 use std::rc::Rc;
 use std::{io, iter, mem, panic};
 
-use crossterm::event::{
-    DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
-    MouseButton, MouseEvent, MouseEventKind,
-};
+#[cfg(test)]
+mod tests;
+
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, is_raw_mode_enabled, EnterAlternateScreen,
     LeaveAlternateScreen,
@@ -144,10 +142,6 @@ pub enum Event {
     ToggleAllUniform,
     ExpandItem,
     ExpandAll,
-    Click {
-        row: usize,
-        column: usize,
-    },
     ToggleCommitViewMode, // no key binding currently
     EditCommitMessage,
     Help,
@@ -197,24 +191,12 @@ impl From<crossterm::event::Event> for Event {
                 modifiers: KeyModifiers::CONTROL,
                 kind: KeyEventKind::Press,
                 state: _,
-            })
-            | Event::Mouse(MouseEvent {
-                kind: MouseEventKind::ScrollUp,
-                column: _,
-                row: _,
-                modifiers: _,
             }) => Self::ScrollUp,
             Event::Key(KeyEvent {
                 code: KeyCode::Down | KeyCode::Char('e'),
                 modifiers: KeyModifiers::CONTROL,
                 kind: KeyEventKind::Press,
                 state: _,
-            })
-            | Event::Mouse(MouseEvent {
-                kind: MouseEventKind::ScrollDown,
-                column: _,
-                row: _,
-                modifiers: _,
             }) => Self::ScrollDown,
 
             Event::Key(KeyEvent {
@@ -338,16 +320,6 @@ impl From<crossterm::event::Event> for Event {
                 state: _event,
             }) => Self::EditCommitMessage,
 
-            Event::Mouse(MouseEvent {
-                kind: MouseEventKind::Down(MouseButton::Left),
-                column,
-                row,
-                modifiers: _,
-            }) => Self::Click {
-                row: row.into(),
-                column: column.into(),
-            },
-
             _event => Self::None,
         }
     }
@@ -431,11 +403,6 @@ enum StateUpdate {
     SetExpandItem(SelectionKey, bool),
     ToggleExpandItem(SelectionKey),
     ToggleExpandAll,
-    UnfocusMenuBar,
-    ClickMenu {
-        menu_idx: usize,
-    },
-    ClickMenuItem(Event),
     ToggleCommitViewMode,
     EditCommitMessage {
         commit_idx: usize,
@@ -549,7 +516,7 @@ impl<'state, 'input> Recorder<'state, 'input> {
 
     fn set_up_crossterm() -> Result<(), RecordError> {
         if !is_raw_mode_enabled().map_err(RecordError::SetUpTerminal)? {
-            crossterm::execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)
+            crossterm::execute!(io::stdout(), EnterAlternateScreen)
                 .map_err(RecordError::SetUpTerminal)?;
             enable_raw_mode().map_err(RecordError::SetUpTerminal)?;
         }
@@ -559,7 +526,7 @@ impl<'state, 'input> Recorder<'state, 'input> {
     fn clean_up_crossterm() -> Result<(), RecordError> {
         if is_raw_mode_enabled().map_err(RecordError::CleanUpTerminal)? {
             disable_raw_mode().map_err(RecordError::CleanUpTerminal)?;
-            crossterm::execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)
+            crossterm::execute!(io::stdout(), LeaveAlternateScreen)
                 .map_err(RecordError::CleanUpTerminal)?;
         }
         Ok(())
@@ -583,8 +550,7 @@ impl<'state, 'input> Recorder<'state, 'input> {
         };
 
         'outer: loop {
-            let menu_bar = self.make_menu_bar();
-            let app = self.make_app(menu_bar.clone(), None);
+            let app = self.make_app(None);
             let term_height = usize::from(term.get_frame().area().height);
 
             let mut drawn_rects: Option<DrawnRects<ComponentId>> = None;
@@ -633,7 +599,7 @@ impl<'state, 'input> Recorder<'state, 'input> {
                 mem::take(&mut self.pending_events)
             };
             for event in events {
-                match self.handle_event(event, term_height, &drawn_rects, &menu_bar)? {
+                match self.handle_event(event, term_height, &drawn_rects)? {
                     StateUpdate::None => {}
                     StateUpdate::SetQuitDialog(quit_dialog) => {
                         self.quit_dialog = quit_dialog;
@@ -708,15 +674,6 @@ impl<'state, 'input> Recorder<'state, 'input> {
                         self.toggle_expand_all()?;
                         self.pending_events.push(Event::EnsureSelectionInViewport);
                     }
-                    StateUpdate::UnfocusMenuBar => {
-                        self.unfocus_menu_bar();
-                    }
-                    StateUpdate::ClickMenu { menu_idx } => {
-                        self.click_menu_header(menu_idx);
-                    }
-                    StateUpdate::ClickMenuItem(event) => {
-                        self.click_menu_item(event);
-                    }
                     StateUpdate::ToggleCommitViewMode => {
                         self.commit_view_mode = match self.commit_view_mode {
                             CommitViewMode::Inline => CommitViewMode::Adjacent,
@@ -734,131 +691,7 @@ impl<'state, 'input> Recorder<'state, 'input> {
         Ok(self.state)
     }
 
-    fn make_menu_bar(&self) -> MenuBar<'static> {
-        MenuBar {
-            menus: vec![
-                Menu {
-                    label: Cow::Borrowed("File"),
-                    items: vec![
-                        MenuItem {
-                            label: Cow::Borrowed("Confirm (c)"),
-                            event: Event::QuitAccept,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Quit (q)"),
-                            event: Event::QuitCancel,
-                        },
-                    ],
-                },
-                Menu {
-                    label: Cow::Borrowed("Edit"),
-                    items: vec![
-                        MenuItem {
-                            label: Cow::Borrowed("Edit message (e)"),
-                            event: Event::EditCommitMessage,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Toggle current (space)"),
-                            event: Event::ToggleItem,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Toggle current and advance (enter)"),
-                            event: Event::ToggleItemAndAdvance,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Invert all items (a)"),
-                            event: Event::ToggleAll,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Invert all items uniformly (A)"),
-                            event: Event::ToggleAllUniform,
-                        },
-                    ],
-                },
-                Menu {
-                    label: Cow::Borrowed("Select"),
-                    items: vec![
-                        MenuItem {
-                            label: Cow::Borrowed("Previous item (up, k)"),
-                            event: Event::FocusPrev,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Next item (down, j)"),
-                            event: Event::FocusNext,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Previous item of the same kind (page-up)"),
-                            event: Event::FocusPrevSameKind,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Next item of the same kind (page-down)"),
-                            event: Event::FocusNextSameKind,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed(
-                                "Outer item without folding (shift-left, shift-h)",
-                            ),
-                            event: Event::FocusOuter {
-                                fold_section: false,
-                            },
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Outer item with folding (left, h)"),
-                            event: Event::FocusOuter { fold_section: true },
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Inner item with unfolding (right, l)"),
-                            event: Event::FocusInner,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Previous page (ctrl-u)"),
-                            event: Event::FocusPrevPage,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Next page (ctrl-d)"),
-                            event: Event::FocusNextPage,
-                        },
-                    ],
-                },
-                Menu {
-                    label: Cow::Borrowed("View"),
-                    items: vec![
-                        MenuItem {
-                            label: Cow::Borrowed("Fold/unfold current (f)"),
-                            event: Event::ExpandItem,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Fold/unfold all (F)"),
-                            event: Event::ExpandAll,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Scroll up (ctrl-up, ctrl-y)"),
-                            event: Event::ScrollUp,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Scroll down (ctrl-down, ctrl-e)"),
-                            event: Event::ScrollDown,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Previous page (ctrl-page-up, ctrl-b)"),
-                            event: Event::PageUp,
-                        },
-                        MenuItem {
-                            label: Cow::Borrowed("Next page (ctrl-page-down, ctrl-f)"),
-                            event: Event::PageDown,
-                        },
-                    ],
-                },
-            ],
-            expanded_menu_idx: self.expanded_menu_idx,
-        }
-    }
-
-    fn make_app(
-        &'state self,
-        menu_bar: MenuBar<'static>,
-        debug_info: Option<AppDebugInfo>,
-    ) -> AppView<'state> {
+    fn make_app(&'state self, debug_info: Option<AppDebugInfo>) -> AppView<'state> {
         let RecordState {
             is_read_only,
             commits,
@@ -893,7 +726,6 @@ impl<'state, 'input> Recorder<'state, 'input> {
         };
         AppView {
             debug_info: None,
-            menu_bar,
             commit_view_mode: self.commit_view_mode,
             commit_views,
             quit_dialog: self.quit_dialog.clone(),
@@ -1055,7 +887,6 @@ impl<'state, 'input> Recorder<'state, 'input> {
         event: Event,
         term_height: usize,
         drawn_rects: &DrawnRects<ComponentId>,
-        menu_bar: &MenuBar,
     ) -> Result<StateUpdate, RecordError> {
         let state_update = match (&self.quit_dialog, event) {
             (_, Event::None) => StateUpdate::None,
@@ -1069,10 +900,7 @@ impl<'state, 'input> Recorder<'state, 'input> {
                 | Event::QuitCancel
                 | Event::ToggleItem
                 | Event::ToggleItemAndAdvance,
-            ) if self.help_dialog.is_some() => {
-                // there is only one button in the help dialog, so 'toggle*' means "click close"
-                StateUpdate::SetHelpDialog(None)
-            }
+            ) if self.help_dialog.is_some() => StateUpdate::SetHelpDialog(None),
             (_, Event::Help) => StateUpdate::SetHelpDialog(Some(HelpDialog())),
 
             // Confirm the changes.
@@ -1229,10 +1057,6 @@ impl<'state, 'input> Recorder<'state, 'input> {
                 commit_idx: self.focused_commit_idx,
             },
 
-            (_, Event::Click { row, column }) => {
-                let component_id = self.find_component_at(drawn_rects, row, column);
-                self.click_component(menu_bar, component_id)
-            }
             (_, Event::ToggleCommitViewMode) => StateUpdate::ToggleCommitViewMode,
 
             // generally ignore escape key
@@ -1623,12 +1447,11 @@ impl<'state, 'input> Recorder<'state, 'input> {
         drawn_rects: &DrawnRects<ComponentId>,
         selection_key: SelectionKey,
     ) -> Option<isize> {
-        let menu_bar_height = 1;
         let sticky_file_header_height = match selection_key {
             SelectionKey::None | SelectionKey::File(_) => 0,
             SelectionKey::Section(_) | SelectionKey::Line(_) => 1,
         };
-        let top_margin = sticky_file_header_height + menu_bar_height;
+        let top_margin = sticky_file_header_height;
 
         let viewport_top_y = self.scroll_offset_y + top_margin;
         let viewport_height = term_height.unwrap_isize() - top_margin;
@@ -1708,93 +1531,6 @@ impl<'state, 'input> Recorder<'state, 'input> {
             })
             .map(|(id, _rect)| *id)
             .unwrap_or(ComponentId::App)
-    }
-
-    fn click_component(&self, menu_bar: &MenuBar, component_id: ComponentId) -> StateUpdate {
-        match component_id {
-            ComponentId::App
-            | ComponentId::AppFiles
-            | ComponentId::MenuHeader
-            | ComponentId::CommitMessageView
-            | ComponentId::QuitDialog => StateUpdate::None,
-            ComponentId::MenuBar => StateUpdate::UnfocusMenuBar,
-            ComponentId::Menu(section_idx) => StateUpdate::ClickMenu {
-                menu_idx: section_idx,
-            },
-            ComponentId::MenuItem(item_idx) => {
-                StateUpdate::ClickMenuItem(self.get_menu_item_event(menu_bar, item_idx))
-            }
-            ComponentId::CommitEditMessageButton(commit_idx) => {
-                StateUpdate::EditCommitMessage { commit_idx }
-            }
-            ComponentId::FileViewHeader(file_key) => StateUpdate::SelectItem {
-                selection_key: SelectionKey::File(file_key),
-                ensure_in_viewport: false,
-            },
-            ComponentId::SelectableItem(selection_key) => StateUpdate::SelectItem {
-                selection_key,
-                ensure_in_viewport: false,
-            },
-            ComponentId::ToggleBox(selection_key) => {
-                if self.selection_key == selection_key {
-                    StateUpdate::ToggleItem(selection_key)
-                } else {
-                    StateUpdate::SelectItem {
-                        selection_key,
-                        ensure_in_viewport: false,
-                    }
-                }
-            }
-            ComponentId::ExpandBox(selection_key) => {
-                if self.selection_key == selection_key {
-                    StateUpdate::ToggleExpandItem(selection_key)
-                } else {
-                    StateUpdate::SelectItem {
-                        selection_key,
-                        ensure_in_viewport: false,
-                    }
-                }
-            }
-            ComponentId::QuitDialogButton(QuitDialogButtonId::GoBack) => {
-                StateUpdate::SetQuitDialog(None)
-            }
-            ComponentId::QuitDialogButton(QuitDialogButtonId::Quit) => StateUpdate::QuitCancel,
-            ComponentId::HelpDialog => StateUpdate::None,
-            ComponentId::HelpDialogQuitButton => StateUpdate::SetHelpDialog(None),
-        }
-    }
-
-    fn get_menu_item_event(&self, menu_bar: &MenuBar, item_idx: usize) -> Event {
-        let MenuBar {
-            menus,
-            expanded_menu_idx,
-        } = menu_bar;
-        let menu_idx = match expanded_menu_idx {
-            Some(section_idx) => section_idx,
-            None => {
-                warn!(?item_idx, "Clicking menu item when no menu is expanded");
-                return Event::None;
-            }
-        };
-        let menu = match menus.get(*menu_idx) {
-            Some(menu) => menu,
-            None => {
-                warn!(?menu_idx, "Clicking out-of-bounds menu");
-                return Event::None;
-            }
-        };
-        let item = match menu.items.get(item_idx) {
-            Some(item) => item,
-            None => {
-                warn!(
-                    ?menu_idx,
-                    ?item_idx,
-                    "Clicking menu bar section item that is out of bounds"
-                );
-                return Event::None;
-            }
-        };
-        item.event.clone()
     }
 
     fn toggle_item(&mut self, selection: SelectionKey) -> Result<(), RecordError> {
@@ -2068,24 +1804,6 @@ impl<'state, 'input> Recorder<'state, 'input> {
             all_selection_keys
         };
         Ok(())
-    }
-
-    fn unfocus_menu_bar(&mut self) {
-        self.expanded_menu_idx = None;
-    }
-
-    fn click_menu_header(&mut self, menu_idx: usize) {
-        let menu_idx = Some(menu_idx);
-        self.expanded_menu_idx = if self.expanded_menu_idx == menu_idx {
-            None
-        } else {
-            menu_idx
-        };
-    }
-
-    fn click_menu_item(&mut self, event: Event) {
-        self.expanded_menu_idx = None;
-        self.pending_events.push(event);
     }
 
     fn edit_commit_message(&mut self, commit_idx: usize) -> Result<(), RecordError> {
@@ -2403,7 +2121,6 @@ struct AppDebugInfo {
 #[derive(Clone, Debug)]
 struct AppView<'a> {
     debug_info: Option<AppDebugInfo>,
-    menu_bar: MenuBar<'a>,
     commit_view_mode: CommitViewMode,
     commit_views: Vec<CommitView<'a>>,
     quit_dialog: Option<QuitDialog>,
@@ -2417,10 +2134,9 @@ impl Component for AppView<'_> {
         ComponentId::App
     }
 
-    fn draw(&self, viewport: &mut Viewport<Self::Id>, x: isize, _y: isize) {
+    fn draw(&self, viewport: &mut Viewport<Self::Id>, _x: isize, _y: isize) {
         let Self {
             debug_info,
-            menu_bar,
             commit_view_mode,
             commit_views,
             quit_dialog,
@@ -2433,7 +2149,6 @@ impl Component for AppView<'_> {
 
         let viewport_rect = viewport.mask_rect();
 
-        let menu_bar_height = 1usize;
         let commit_view_width = match commit_view_mode {
             CommitViewMode::Inline => viewport.rect().width,
             CommitViewMode::Adjacent => {
@@ -2444,7 +2159,7 @@ impl Component for AppView<'_> {
         };
         let commit_views_mask = Mask {
             x: viewport_rect.x,
-            y: viewport_rect.y + menu_bar_height.unwrap_isize(),
+            y: viewport_rect.y,
             width: Some(viewport_rect.width),
             height: None,
         };
@@ -2458,19 +2173,13 @@ impl Component for AppView<'_> {
                     height: None,
                 };
                 let commit_view_rect = viewport.with_mask(commit_view_mask, |viewport| {
-                    viewport.draw_component(
-                        commit_view_x,
-                        menu_bar_height.unwrap_isize(),
-                        commit_view,
-                    )
+                    viewport.draw_component(commit_view_x, 0, commit_view)
                 });
                 commit_view_x += (CommitView::MARGIN
                     + commit_view_mask.apply(commit_view_rect).width)
                     .unwrap_isize();
             }
         });
-
-        viewport.draw_component(x, viewport_rect.y, menu_bar);
 
         if let Some(quit_dialog) = quit_dialog {
             viewport.draw_component(0, 0, quit_dialog);
@@ -3539,7 +3248,7 @@ impl Component for HelpDialog {
     fn draw(&self, viewport: &mut Viewport<Self::Id>, _: isize, _: isize) {
         let title = "Help";
         let body = Text::from(vec![
-            Line::from("You can click the menus with a mouse, or use these keyboard shortcuts:"),
+            Line::from("Use these keyboard shortcuts:"),
             Line::from(""),
             Line::from(vec![
                 Span::raw("    "),
@@ -3698,62 +3407,4 @@ impl<Id: Clone + Debug + Eq + Hash> Component for Dialog<'_, Id> {
 
 fn highlight_rect<Id: Clone + Debug + Eq + Hash>(viewport: &mut Viewport<Id>, rect: Rect) {
     viewport.set_style(rect, Style::default().add_modifier(Modifier::REVERSED));
-}
-
-#[cfg(test)]
-mod tests {
-    use std::borrow::Cow;
-
-    use crate::helpers::TestingInput;
-
-    use super::*;
-
-    use assert_matches::assert_matches;
-
-    #[test]
-    fn test_event_source_testing() {
-        let mut event_source = TestingInput::new(80, 24, [Event::QuitCancel]);
-        assert_matches!(
-            event_source.next_events().unwrap().as_slice(),
-            &[Event::QuitCancel]
-        );
-        assert_matches!(
-            event_source.next_events().unwrap().as_slice(),
-            &[Event::None]
-        );
-    }
-
-    #[test]
-    fn test_quit_returns_error() {
-        let state = RecordState::default();
-        let mut input = TestingInput::new(80, 24, [Event::QuitCancel]);
-        let recorder = Recorder::new(state, &mut input);
-        assert_matches!(recorder.run(), Err(RecordError::Cancelled));
-
-        let state = RecordState {
-            is_read_only: false,
-            commits: vec![Commit::default(), Commit::default()],
-            files: vec![File {
-                old_path: None,
-                path: Cow::Borrowed(Path::new("foo/bar")),
-                file_mode: FileMode::FILE_DEFAULT,
-                sections: Default::default(),
-            }],
-        };
-        let mut input = TestingInput::new(80, 24, [Event::QuitAccept]);
-        let recorder = Recorder::new(state.clone(), &mut input);
-        assert_eq!(recorder.run().unwrap(), state);
-    }
-
-    fn test_push_lines_from_span_impl(line: &str) {
-        let mut spans = Vec::new();
-        push_spans_from_line(line, &mut spans); // assert no panic
-    }
-
-    proptest::proptest! {
-        #[test]
-        fn test_push_lines_from_span(line in ".*") {
-            test_push_lines_from_span_impl(line.as_str());
-        }
-    }
 }
