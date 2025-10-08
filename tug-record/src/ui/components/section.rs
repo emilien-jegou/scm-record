@@ -17,7 +17,7 @@ use crate::{
     FileMode, Section, SectionChangedLine, Tristate,
 };
 
-pub const NUM_CONTEXT_LINES: usize = 12;
+pub const NUM_CONTEXT_LINES: usize = 4;
 
 #[derive(Clone, Debug)]
 pub enum SectionSelection {
