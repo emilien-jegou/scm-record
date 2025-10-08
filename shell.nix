@@ -14,10 +14,10 @@ in
 pkgs.mkShell {
     buildInputs = with pkgs; [
       ## Rust build dependencies
-      gcc
-      openssl
-      wmctrl
-      pkg-config
+      #gcc
+      #openssl
+      #wmctrl
+      #pkg-config
       (pkgs.rust-bin.nightly."2025-09-01".default.override {
         extensions = ["rust-src" "rustfmt" "rust-analyzer" "clippy"];
         targets = ["wasm32-unknown-unknown" "x86_64-unknown-linux-gnu" ];

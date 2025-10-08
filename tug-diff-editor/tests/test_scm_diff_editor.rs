@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use insta::assert_debug_snapshot;
 use maplit::btreemap;
 
-use scm_diff_editor::testing::{file_info, select_all, TestFilesystem};
-use scm_diff_editor::{apply_changes, process_opts, DiffContext, Opts, Result};
-use scm_record::{RecordState, Section};
+use tug_diff_editor::testing::{file_info, select_all, TestFilesystem};
+use tug_diff_editor::{apply_changes, process_opts, DiffContext, Opts, Result};
+use tug_record::{RecordState, Section};
 
 #[test]
 fn test_diff() -> Result<()> {

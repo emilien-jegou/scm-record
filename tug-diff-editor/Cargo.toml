@@ -3,11 +3,11 @@ authors = ["Waleed Khan <me@waleedkhan.name>"]
 description = "UI component to interactively select changes to include in a commit."
 edition = "2021"
 license = "MIT OR Apache-2.0"
-name = "scm-diff-editor"
-repository = "https://github.com/arxanas/scm-record"
+name = "tug-diff-editor"
+repository = "https://github.com/arxanas/tug-record"
 version = "0.8.0"
 
-# Keep in sync with `scm-record/Cargo.toml`.
+# Keep in sync with `tug-record/Cargo.toml`.
 rust-version = "1.85"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,7 +15,7 @@ rust-version = "1.85"
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 diffy = "0.4"
-scm-record = { version = "0.8", path = "../scm-record" }
+tug-record = { version = "0.8", path = "../tug-record" }
 sha1 = "0.10"
 thiserror = "2.0.3"
 tracing = "0.1.40"

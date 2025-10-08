@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 use std::path::Path;
 
-use scm_record::{
+use tug_record::{
     helpers::CrosstermInput, ChangeType, File, FileMode, RecordError, RecordState, Recorder,
     Section, SectionChangedLine, SelectedChanges, SelectedContents,
 };

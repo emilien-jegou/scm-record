@@ -23,8 +23,8 @@ use sha1::Digest;
 use thiserror::Error;
 use walkdir::WalkDir;
 
-use scm_record::helpers::CrosstermInput;
-use scm_record::{
+use tug_record::helpers::CrosstermInput;
+use tug_record::{
     File, FileMode, RecordError, RecordState, Recorder, SelectedChanges, SelectedContents,
 };
 
@@ -126,7 +126,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// which case its contents will be marked as absent.
 #[derive(Clone, Debug)]
 pub struct FileInfo {
-    /// The file mode (see [`scm_record::FileMode`]).
+    /// The file mode (see [`tug_record::FileMode`]).
     pub file_mode: FileMode,
 
     /// The file contents.
@@ -582,7 +582,7 @@ mod tests {
     use maplit::btreemap;
     use std::collections::BTreeMap;
 
-    use scm_record::Section;
+    use tug_record::Section;
 
     use super::*;
 

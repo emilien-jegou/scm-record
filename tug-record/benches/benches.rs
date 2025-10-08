@@ -2,13 +2,13 @@ use std::{borrow::Cow, path::Path};
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
-use scm_record::{
+use tug_record::{
     helpers::TestingInput, ChangeType, Event, File, FileMode, RecordState, Recorder, Section,
     SectionChangedLine,
 };
 
 fn bench_record(c: &mut Criterion) {
-    c.bench_function("scm_record: toggle line", |b| {
+    c.bench_function("tug_record: toggle line", |b| {
         let before_line = SectionChangedLine {
             line: Cow::Borrowed("foo"),
             is_checked: false,

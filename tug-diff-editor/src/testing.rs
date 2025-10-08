@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use scm_record::{File, FileMode};
+use tug_record::{File, FileMode};
 
 use crate::{Error, FileContents, FileInfo, Filesystem, Result};
 

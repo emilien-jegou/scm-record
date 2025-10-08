@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::path::PathBuf;
 
-use scm_record::helpers::make_binary_description;
-use scm_record::{ChangeType, File, Section, SectionChangedLine};
+use tug_record::helpers::make_binary_description;
+use tug_record::{ChangeType, File, Section, SectionChangedLine};
 use tracing::warn;
 
 use super::{Error, FileContents, FileInfo, Filesystem};

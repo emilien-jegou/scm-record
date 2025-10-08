@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use scm_record::{
+use tug_record::{
     helpers::CrosstermInput, FileMode, RecordError, RecordState, Recorder, SelectedChanges,
     SelectedContents,
 };

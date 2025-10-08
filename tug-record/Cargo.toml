@@ -3,8 +3,8 @@ authors = ["Waleed Khan <me@waleedkhan.name>"]
 description = "UI component to interactively select changes to include in a commit."
 edition = "2021"
 license = "MIT OR Apache-2.0"
-name = "scm-record"
-repository = "https://github.com/arxanas/scm-record"
+name = "tug-record"
+repository = "https://github.com/arxanas/tug-record"
 version = "0.8.0"
 
 # Main consumers to consider:
