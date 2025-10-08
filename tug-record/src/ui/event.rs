@@ -180,7 +180,7 @@ impl From<crossterm::event::Event> for Event {
                 modifiers: KeyModifiers::NONE,
                 kind: KeyEventKind::Press,
                 state: _,
-            }) => Self::ToggleItemAndAdvance,
+            }) =>  Self::QuitInterrupt,
 
             Event::Key(KeyEvent {
                 code: KeyCode::Char('a'),
