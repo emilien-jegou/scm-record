@@ -4,18 +4,20 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::Span,
 };
-use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    render::{Component, Mask, Rect, Viewport},
+    render::{Component, Rect, Viewport},
     ui::components::{
-        app::SelectionKey, line::{LineKey, SectionLineView, SectionLineViewInner}, widgets::{highlight_rect, TristateBox, TristateIconStyle}, ComponentId
+        app::SelectionKey,
+        line::{LineKey, SectionLineView, SectionLineViewInner},
+        widgets::{highlight_rect, TristateBox, TristateIconStyle},
+        ComponentId,
     },
-    util::{IsizeExt, UsizeExt},
+    util::UsizeExt,
     FileMode, Section, SectionChangedLine, Tristate,
 };
 
-pub const NUM_CONTEXT_LINES: usize = 3;
+pub const NUM_CONTEXT_LINES: usize = 12;
 
 #[derive(Clone, Debug)]
 pub enum SectionSelection {
@@ -32,7 +34,6 @@ pub struct SectionKey {
 
 #[derive(Clone, Debug)]
 pub struct SectionView<'a> {
-    pub use_unicode: bool,
     pub is_read_only: bool,
     pub section_key: SectionKey,
     pub toggle_box: TristateBox<ComponentId>,
@@ -58,6 +59,9 @@ impl SectionView<'_> {
     }
 }
 
+// ... (imports and struct definitions remain the same) ...
+
+// ANCHOR: updated_sectionview_component_impl
 impl Component for SectionView<'_> {
     type Id = ComponentId;
 
@@ -67,7 +71,6 @@ impl Component for SectionView<'_> {
 
     fn draw(&self, viewport: &mut Viewport<Self::Id>, x: isize, y: isize) {
         let Self {
-            use_unicode,
             is_read_only,
             section_key,
             toggle_box,
@@ -93,6 +96,7 @@ impl Component for SectionView<'_> {
         } = *section_key;
         match section {
             Section::Unchanged { lines } => {
+                // ... (this entire block remains unchanged)
                 if lines.is_empty() {
                     return;
                 }
@@ -162,11 +166,7 @@ impl Component for SectionView<'_> {
 
                 let should_render_ellipsis = lines.len() > NUM_CONTEXT_LINES;
                 if should_render_ellipsis {
-                    let ellipsis = if *use_unicode {
-                        "\u{22EE}" // Vertical Ellipsis
-                    } else {
-                        ":"
-                    };
+                    let ellipsis = "\u{22EE}";
                     viewport.draw_span(
                         x + 6, // align with line numbering
                         y + dy,
@@ -196,35 +196,26 @@ impl Component for SectionView<'_> {
             }
 
             Section::Changed { lines } => {
-                // Draw expand box at end of line.
-                let expand_box_width = expand_box.text().width().unwrap_isize();
-                let expand_box_rect = viewport.draw_component(
-                    viewport.mask_rect().width.unwrap_isize() - expand_box_width,
-                    y,
-                    expand_box,
-                );
+                // Draw section header from left to right.
+                let mut cursor_x = x;
 
-                // Draw section header.
-                viewport.with_mask(
-                    Mask {
-                        x,
-                        y,
-                        width: Some((expand_box_rect.x - x).clamp_into_usize()),
-                        height: Some(1),
-                    },
-                    |viewport| {
-                        let toggle_box_rect = viewport.draw_component(x, y, toggle_box);
-                        viewport.draw_text(
-                            x + toggle_box_rect.width.unwrap_isize() + 1,
-                            y,
-                            Span::styled(
-                                format!(
-                                    "Section {editable_section_num}/{total_num_editable_sections}"
-                                ),
-                                Style::default(),
-                            ),
-                        )
-                    },
+                // 1. Draw the expand box.
+                let expand_box_rect = viewport.draw_component(cursor_x, y, expand_box);
+                cursor_x += expand_box_rect.width.unwrap_isize() + 1;
+
+                // 2. Draw the toggle box.
+                let toggle_box_rect = viewport.draw_component(cursor_x, y, toggle_box);
+                cursor_x += toggle_box_rect.width.unwrap_isize() + 1;
+
+                // 3. Draw the section description text.
+                viewport.draw_text(
+                    cursor_x,
+                    y,
+                    Span::styled(
+                        format!("Section {editable_section_num}/{total_num_editable_sections}"),
+                        // Use a distinct color for hunk headers.
+                        Style::default().fg(Color::LightMagenta),
+                    ),
                 );
 
                 match selection {
@@ -264,11 +255,9 @@ impl Component for SectionView<'_> {
                             line_idx,
                         };
                         let toggle_box = TristateBox {
-                            use_unicode: *use_unicode,
                             id: ComponentId::ToggleBox(SelectionKey::Line(line_key)),
                             icon_style: TristateIconStyle::Check,
                             tristate: Tristate::from(*is_checked),
-                            is_focused,
                             is_read_only: *is_read_only,
                         };
                         let line_view = SectionLineView {
@@ -296,6 +285,7 @@ impl Component for SectionView<'_> {
                 }
             }
 
+            // ... (Section::FileMode and Section::Binary remain unchanged) ...
             Section::FileMode { is_checked, mode } => {
                 let is_focused = match selection {
                     Some(SectionSelection::SectionHeader) => true,
@@ -308,11 +298,9 @@ impl Component for SectionView<'_> {
                 };
                 let selection_key = SelectionKey::Section(section_key);
                 let toggle_box = TristateBox {
-                    use_unicode: *use_unicode,
                     id: ComponentId::ToggleBox(selection_key),
                     icon_style: TristateIconStyle::Check,
                     tristate: Tristate::from(*is_checked),
-                    is_focused,
                     is_read_only: *is_read_only,
                 };
                 let toggle_box_rect = viewport.draw_component(x, y, &toggle_box);
@@ -325,7 +313,7 @@ impl Component for SectionView<'_> {
                     FileMode::Absent => "File deleted".to_owned(),
                 };
 
-                viewport.draw_text(x, y, Span::styled(text, Style::default().fg(Color::Blue)));
+                viewport.draw_text(x, y, Span::styled(text, Style::default().fg(Color::Magenta)));
                 if is_focused {
                     highlight_rect(
                         viewport,
@@ -354,11 +342,9 @@ impl Component for SectionView<'_> {
                     section_idx,
                 };
                 let toggle_box = TristateBox {
-                    use_unicode: *use_unicode,
                     id: ComponentId::ToggleBox(SelectionKey::Section(section_key)),
                     icon_style: TristateIconStyle::Check,
                     tristate: Tristate::from(*is_checked),
-                    is_focused,
                     is_read_only: *is_read_only,
                 };
                 let toggle_box_rect = viewport.draw_component(x, y, &toggle_box);
@@ -381,7 +367,7 @@ impl Component for SectionView<'_> {
                     result.push(description.join(" -> "));
                     format!("({})", result.join(" "))
                 };
-                viewport.draw_text(x, y, Span::styled(text, Style::default().fg(Color::Blue)));
+                viewport.draw_text(x, y, Span::styled(text, Style::default().fg(Color::Magenta)));
 
                 if is_focused {
                     highlight_rect(

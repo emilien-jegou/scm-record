@@ -132,7 +132,7 @@ impl Component for SectionLineView<'_> {
                 let mut spans = vec![line_number];
                 push_spans_from_line(line, &mut spans);
 
-                const UI_UNCHANGED_STYLE: Style = Style::new().add_modifier(Modifier::DIM);
+                const UI_UNCHANGED_STYLE: Style = Style::new().fg(Color::Gray).add_modifier(Modifier::DIM);
                 viewport.draw_text(x, y, Line::from(spans).style(UI_UNCHANGED_STYLE));
             }
 

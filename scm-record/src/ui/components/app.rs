@@ -1,7 +1,8 @@
 use crate::render::{Component, DrawnRect, Mask, Viewport};
-use crate::ui::components::commit::{CommitView, CommitViewMode};
-use crate::ui::components::dialog::{self};
+use crate::ui::components::commit_message_view::CommitViewMode;
+use crate::ui::components::commit_view::CommitView;
 use crate::ui::components::file::FileKey;
+use crate::ui::components::help_dialog::HelpDialog;
 use crate::ui::components::line::LineKey;
 use crate::ui::components::section::SectionKey;
 use crate::ui::components::ComponentId;
@@ -38,8 +39,7 @@ pub struct AppView<'a> {
     pub debug_info: Option<AppDebugInfo>,
     pub commit_view_mode: CommitViewMode,
     pub commit_views: Vec<CommitView<'a>>,
-    pub quit_dialog: Option<dialog::QuitDialog>,
-    pub help_dialog: Option<dialog::HelpDialog>,
+    pub help_dialog: Option<HelpDialog>,
 }
 
 impl Component for AppView<'_> {
@@ -54,7 +54,6 @@ impl Component for AppView<'_> {
             debug_info,
             commit_view_mode,
             commit_views,
-            quit_dialog,
             help_dialog,
         } = self;
 
@@ -96,9 +95,6 @@ impl Component for AppView<'_> {
             }
         });
 
-        if let Some(quit_dialog) = quit_dialog {
-            viewport.draw_component(0, 0, quit_dialog);
-        }
         if let Some(help_dialog) = help_dialog {
             viewport.draw_component(0, 0, help_dialog);
         }

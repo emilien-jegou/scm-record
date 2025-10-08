@@ -14,46 +14,53 @@ pub enum TristateIconStyle {
 
 #[derive(Clone, Debug)]
 pub struct TristateBox<Id> {
-    pub use_unicode: bool,
     pub id: Id,
     pub tristate: Tristate,
     pub icon_style: TristateIconStyle,
-    pub is_focused: bool,
     pub is_read_only: bool,
 }
 
 impl<Id> TristateBox<Id> {
     pub fn text(&self) -> String {
         let Self {
-            use_unicode,
-            id: _,
             tristate,
             icon_style,
-            is_focused,
-            is_read_only,
+            ..
         } = self;
 
-        let (l, r) = match (is_read_only, is_focused) {
-            (true, _) => ("<", ">"),
-            (false, false) => ("[", "]"),
-            (false, true) => ("(", ")"),
-        };
+        match icon_style {
+            // Render expand/collapse icons: ▶ for collapsed, ▼ for expanded.
+            // These icons do not have brackets.
+            TristateIconStyle::Expand => match tristate {
+                Tristate::False => "▶".to_string(),
+                // A partially-selected container is still visually expanded.
+                Tristate::True | Tristate::Partial => "▼".to_string(),
+            },
+            // Render selection state icons.
+            TristateIconStyle::Check => match tristate {
+                Tristate::False => "[ ]".to_string(),
+                Tristate::True => "[*]".to_string(),
+                Tristate::Partial => "[~]".to_string(),
+            },
+        }
+    }
 
-        let inner = match (icon_style, tristate, use_unicode) {
-            (TristateIconStyle::Expand, Tristate::False, _) => "+",
-            (TristateIconStyle::Expand, Tristate::True, _) => "-",
-            (TristateIconStyle::Expand, Tristate::Partial, false) => "~",
-            (TristateIconStyle::Expand, Tristate::Partial, true) => "±",
+    pub fn color(&self) -> Color {
+        let Self {
+            tristate,
+            icon_style,
+            ..
+        } = self;
 
-            (TristateIconStyle::Check, Tristate::False, false) => " ",
-            (TristateIconStyle::Check, Tristate::True, false) => "*",
-            (TristateIconStyle::Check, Tristate::Partial, false) => "~",
-
-            (TristateIconStyle::Check, Tristate::False, true) => " ",
-            (TristateIconStyle::Check, Tristate::True, true) => "●",
-            (TristateIconStyle::Check, Tristate::Partial, true) => "◐",
-        };
-        format!("{l}{inner}{r}")
+        match icon_style {
+            TristateIconStyle::Expand => Color::Magenta,
+            // Render selection state icons.
+            TristateIconStyle::Check => match tristate {
+                Tristate::False => Color::DarkGray,
+                Tristate::True => Color::Blue,
+                Tristate::Partial => Color::Yellow,
+            },
+        }
     }
 }
 
@@ -68,7 +75,7 @@ impl<Id: Clone + Debug + Eq + Hash> Component for TristateBox<Id> {
         let style = if self.is_read_only {
             Style::default().fg(Color::Gray).add_modifier(Modifier::DIM)
         } else {
-            Style::default().add_modifier(Modifier::BOLD)
+            Style::default().fg(self.color()).add_modifier(Modifier::BOLD)
         };
         let span = Span::styled(self.text(), style);
         viewport.draw_span(x, y, &span);
@@ -116,5 +123,5 @@ impl<Id: Clone + Debug + Eq + Hash> Component for Button<'_, Id> {
 }
 
 pub fn highlight_rect<Id: Clone + Debug + Eq + Hash>(viewport: &mut Viewport<Id>, rect: Rect) {
-    viewport.set_style(rect, Style::default().add_modifier(Modifier::REVERSED));
+    viewport.set_style(rect, Style::default().bg(Color::Rgb(38, 38, 38)));
 }

@@ -1,9 +1,11 @@
-use crate::ui::components::{app::SelectionKey, dialog::QuitDialogButtonId, file::FileKey};
+use crate::ui::components::{app::SelectionKey, file::FileKey};
 
 pub mod app;
-pub mod commit;
+pub mod commit_message_view;
+pub mod commit_view;
 pub mod dialog;
 pub mod file;
+pub mod help_dialog;
 pub mod line;
 pub mod section;
 pub mod widgets;
@@ -18,8 +20,6 @@ pub enum ComponentId {
     SelectableItem(SelectionKey),
     ToggleBox(SelectionKey),
     ExpandBox(SelectionKey),
-    QuitDialog,
-    QuitDialogButton(QuitDialogButtonId),
     HelpDialog,
     HelpDialogQuitButton,
 }

@@ -1,15 +1,14 @@
-use crate::render::{Component, Mask, Rect, Viewport};
+use crate::render::{Component, Rect, Viewport};
 use crate::types::Tristate;
 use crate::ui::components::app::SelectionKey;
-use crate::ui::components::{section, ComponentId};
 use crate::ui::components::widgets::{highlight_rect, TristateBox};
-use crate::util::{IsizeExt, UsizeExt};
-use ratatui::style::{Color, Style};
+use crate::ui::components::{section, ComponentId};
+use crate::util::UsizeExt;
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::Path;
-use unicode_width::UnicodeWidthStr;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct FileKey {
@@ -127,6 +126,7 @@ impl Component for FileViewHeader<'_> {
         ComponentId::FileViewHeader(*file_key)
     }
 
+    // ANCHOR: updated_fileviewheader_draw
     fn draw(&self, viewport: &mut Viewport<Self::Id>, x: isize, y: isize) {
         let Self {
             file_key: _,
@@ -137,51 +137,34 @@ impl Component for FileViewHeader<'_> {
             expand_box,
         } = self;
 
-        // Draw expand box at end of line.
-        let expand_box_width = expand_box.text().width().unwrap_isize();
-        let expand_box_rect = viewport.draw_component(
-            viewport.mask_rect().end_x() - expand_box_width,
+        // Draw components left-to-right: expand icon -> select checkbox -> file path
+        let mut cursor_x = x;
+
+        let expand_box_rect = viewport.draw_component(cursor_x, y, expand_box);
+        cursor_x += expand_box_rect.width.unwrap_isize() + 1; // Add 1 for spacing
+
+        let toggle_box_rect = viewport.draw_component(cursor_x, y, toggle_box);
+        cursor_x += toggle_box_rect.width.unwrap_isize() + 1; // Add 1 for spacing
+
+        viewport.draw_text(
+            cursor_x,
             y,
-            expand_box,
+            Span::styled(
+                format!(
+                    "{}{}",
+                    match old_path {
+                        Some(old_path) => format!("{} → ", old_path.to_string_lossy()),
+                        None => String::new(),
+                    },
+                    path.to_string_lossy(),
+                ),
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
+            ),
         );
 
-        viewport.with_mask(
-            Mask {
-                x,
-                y,
-                width: Some((expand_box_rect.x - x).clamp_into_usize()),
-                height: Some(1),
-            },
-            |viewport| {
-                viewport.draw_blank(Rect {
-                    x,
-                    y,
-                    width: viewport.mask_rect().width,
-                    height: 1,
-                });
-                let toggle_box_rect = viewport.draw_component(x, y, toggle_box);
-                viewport.draw_text(
-                    x + toggle_box_rect.width.unwrap_isize() + 1,
-                    y,
-                    Span::styled(
-                        format!(
-                            "{}{}",
-                            match old_path {
-                                Some(old_path) => format!("{} => ", old_path.to_string_lossy()),
-                                None => String::new(),
-                            },
-                            path.to_string_lossy(),
-                        ),
-                        if *is_selected {
-                            Style::default().fg(Color::Blue)
-                        } else {
-                            Style::default()
-                        },
-                    ),
-                );
-            },
-        );
-
+        // 4. Highlight the entire line if it's selected.
         if *is_selected {
             highlight_rect(
                 viewport,
@@ -194,4 +177,5 @@ impl Component for FileViewHeader<'_> {
             );
         }
     }
+    // ANCHOR_END: updated_fileviewheader_draw
 }

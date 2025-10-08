@@ -20,6 +20,6 @@ pub use types::{
     ChangeType, Commit, File, FileMode, RecordError, RecordState, Section, SectionChangedLine,
     SelectedChanges, SelectedContents, Tristate,
 };
-pub use ui::{ Recorder};
+pub use ui::{ recorder::Recorder };
 
 pub use crate::ui::input::RecordInput;
